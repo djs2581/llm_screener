@@ -35,6 +35,23 @@ jobs:
             --use-llm 1 \
             --csv screener_results.csv \
             --html screener_report.html
+            
+      - name: Commit outputs to gh-pages
+        if: always()
+        run: |
+          mkdir -p out
+          cp screener_report.html out/index.html
+          cp screener_results.csv out/screener_results.csv
+          echo "screener llm report $(date -u)" > out/README.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout --orphan gh-pages || git checkout gh-pages
+          rm -rf *
+          cp -r out/* .
+          git add -A
+          git commit -m "Update report [skip ci]" || true
+          git push -f origin gh-pages
 
       - name: Print compact Top 10 to logs
         run: |
