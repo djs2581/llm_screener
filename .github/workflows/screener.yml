@@ -1,0 +1,57 @@
+name: LLM Stock Screener (7am PT Daily)
+
+on:
+  schedule:
+    # GitHub Actions uses UTC. 07:00 PT is 14:00 UTC during PDT and 15:00 UTC during PST.
+    - cron: "0 14 * 3-10 *"  # Mar–Oct (PDT) → 07:00 PT
+    - cron: "0 15 * 11,12,1,2 *"  # Nov–Feb (PST) → 07:00 PT
+  workflow_dispatch: {}  # manual run button
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run screener
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python llm_screener_adapter.py \
+            --tickers "TSLA,AMD,AVGO,NVDA,CELH,DOCN,HOOD,MSFT,NFLX,PLTR,ASTS,META,AMZN,ETOR,VST,OKLO,BMNR,SBET,SOUN,ENPH,RUN" \
+            --days 300 \
+            --top 20 \
+            --use-llm 1 \
+            --csv screener_results.csv \
+            --html screener_report.html
+
+      - name: Print compact Top 10 to logs
+        run: |
+          python - <<'PY'
+          import csv
+          rows = list(csv.DictReader(open("screener_results.csv")))
+          print("Top 10:")
+          for i, r in enumerate(rows[:10], 1):
+              print(f"{i:>2}. {r.get('ticker',''):>6}  score={r.get('score','')}  verdict={r.get('verdict','')}  price={r.get('snap_price','') or r.get('price','')}")
+          print("\nSaved CSV → screener_results.csv")
+          print("Saved HTML → screener_report.html")
+          PY
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: screener_outputs
+          path: |
+            screener_results.csv
+            screener_report.html
